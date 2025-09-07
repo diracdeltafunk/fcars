@@ -1,4 +1,5 @@
-# fcars
+# fcars [![Rust](https://github.com/diracdeltafunk/fcars/actions/workflows/rust.yml/badge.svg)](https://github.com/diracdeltafunk/fcars/actions/workflows/rust.yml)
+
 
 `Formal Concept Analysis in Rust`
 
