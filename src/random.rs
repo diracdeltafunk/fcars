@@ -19,6 +19,6 @@ impl FormalContext<usize, usize> {
     /// Generate a random formal context with the given number of objects and attributes.
     /// Each entry in the matrix is 0 or 1 with probability 50%
     pub fn random(num_objs: usize, num_attrs: usize) -> Self {
-        random_with_density(num_objs, num_attrs, 0.5)
+        Self::random_with_density(num_objs, num_attrs, 0.5)
     }
 }
