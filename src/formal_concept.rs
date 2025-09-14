@@ -11,6 +11,31 @@ pub struct FormalConcept<A = String, B = String> {
     pub intent: BitVec, // A subset of attributes
 }
 
+/// A RawFormalConcept is optimized for efficiency -- it simply stores a pair of an extent and an intent.
+#[derive(Debug, Clone)]
+pub struct RawFormalConcept {
+    pub extent: BitVec,
+    pub intent: BitVec,
+}
+
+impl RawFormalConcept {
+    /// Checks that the RawFormalConcept is actually a valid concept for the provided context.
+    pub fn to_formal_concept<A, B>(
+        &self,
+        context: Arc<FormalContext<A, B>>,
+    ) -> FormalConcept<A, B> {
+        assert_eq!(context.objects.len(), self.extent.len());
+        assert_eq!(context.attributes.len(), self.intent.len());
+        let result = FormalConcept {
+            context,
+            extent: self.extent.clone(),
+            intent: self.intent.clone(),
+        };
+        assert!(result.validate());
+        result
+    }
+}
+
 impl<A: std::fmt::Debug, B: std::fmt::Debug> std::fmt::Display for FormalConcept<A, B> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let extent: Vec<_> = self

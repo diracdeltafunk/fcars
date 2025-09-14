@@ -2,8 +2,10 @@ use std::fmt::Display;
 use std::fs::File;
 
 use crate::FormalConcept;
+use crate::RawFormalConcept;
 use crate::bit_fiddling::*;
 use bitvec::prelude::*;
+use std::sync::Arc;
 
 #[derive(Debug, PartialEq, Eq, Hash, Clone)]
 pub struct FormalContext<A = String, B = String> {
@@ -78,6 +80,16 @@ impl<A, B> FormalContext<A, B> {
             attributes,
         }
     }
+    /// Get the maximal concept (as RawFormalConcept)
+    pub fn max_concept_raw(&self) -> RawFormalConcept {
+        RawFormalConcept {
+            extent: BitVec::repeat(true, self.objects.len()),
+            intent: self
+                .relation
+                .iter()
+                .fold(BitVec::repeat(true, self.attributes.len()), |a, b| a & b),
+        }
+    }
     /// Modifies the relation at the given indices.
     pub fn modify_relation_idx(&mut self, obj_idx: usize, attr_idx: usize, value: bool) {
         self.relation[obj_idx].set(attr_idx, value);
@@ -147,16 +159,14 @@ impl<A, B> FormalContext<A, B> {
 }
 
 impl<A: Clone, B: Clone> FormalContext<A, B> {
+    /// Produce Arc of self
+    pub fn arc(&self) -> Arc<Self> {
+        Arc::new(self.clone())
+    }
     /// Get the maximal concept
     pub fn max_concept(&self) -> FormalConcept<A, B> {
-        FormalConcept {
-            context: std::sync::Arc::new(self.clone()),
-            extent: BitVec::repeat(true, self.objects.len()),
-            intent: self
-                .relation
-                .iter()
-                .fold(BitVec::repeat(true, self.attributes.len()), |a, b| a & b),
-        }
+        self.max_concept_raw()
+            .to_formal_concept(std::sync::Arc::new(self.clone()))
     }
 }
 

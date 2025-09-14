@@ -1,37 +1,66 @@
 use crate::FormalConcept;
 use crate::FormalContext;
+use crate::RawFormalConcept;
 use rayon::iter::walk_tree;
 use rayon::prelude::*;
 
-impl<A: Clone + Send + Sync, B: Clone + Send + Sync> FormalConcept<A, B> {
-    fn cbo_children(&self, y: usize) -> Vec<(Self, usize)> {
-        let mut result = vec![];
-        for j in self.intent.iter_zeros().filter(|&j| j >= y) {
-            let c = self.extent.clone() & self.context.get_attribute_extent(j);
-            let d = self.context.induce_r(&c);
-            if self.intent[0..j] == d[0..j] {
-                result.push((
-                    Self {
-                        context: self.context.clone(),
-                        extent: c,
-                        intent: d,
-                    },
-                    j + 1,
-                ));
+// impl<A: Clone + Sync, B: Clone + Sync> FormalConcept<A, B> {
+//     fn cbo_children(&self, y: usize) -> Vec<(Self, usize)> {
+//         let mut result = vec![];
+//         for j in self.intent.iter_zeros().filter(|&j| j >= y) {
+//             let c = self.extent.clone() & self.context.get_attribute_extent(j);
+//             let d = self.context.induce_r(&c);
+//             if self.intent[0..j] == d[0..j] {
+//                 result.push((
+//                     Self {
+//                         context: self.context.clone(),
+//                         extent: c,
+//                         intent: d,
+//                     },
+//                     j + 1,
+//                 ));
+//             }
+//         }
+//         result
+//     }
+// }
+
+impl<A: Sync, B: Sync> FormalContext<A, B> {
+    /// Returns a parallel iterator over all formal concepts for this formal context.
+    pub fn all_concepts_raw_par_iter(&self) -> impl ParallelIterator<Item = RawFormalConcept> {
+        walk_tree((self.max_concept_raw(), 0), |(concept, y)| {
+            // This is the CbO algorithm, as expressed in the PCbO paper.
+            let mut result = vec![];
+            for j in concept.intent.iter_zeros().filter(|&j| j >= *y) {
+                let c = concept.extent.clone() & self.get_attribute_extent(j);
+                let d = self.induce_r(&c);
+                if concept.intent[0..j] == d[0..j] {
+                    result.push((
+                        RawFormalConcept {
+                            extent: c,
+                            intent: d,
+                        },
+                        j + 1,
+                    ));
+                }
             }
-        }
-        result
+            result
+        })
+        .map(|(c, _)| c)
+    }
+    pub fn all_concepts_raw(&self) -> Vec<RawFormalConcept> {
+        self.all_concepts_raw_par_iter().collect()
+    }
+    pub fn num_concepts(&self) -> usize {
+        self.all_concepts_raw_par_iter().count()
     }
 }
 
 impl<A: Clone + Send + Sync, B: Clone + Send + Sync> FormalContext<A, B> {
-    pub fn all_concepts_par_iter(&self) -> impl ParallelIterator<Item = FormalConcept<A, B>> {
-        walk_tree((self.max_concept(), 0), |(x, y)| x.cbo_children(*y)).map(|(c, _)| c)
-    }
     pub fn all_concepts(&self) -> Vec<FormalConcept<A, B>> {
-        self.all_concepts_par_iter().collect()
-    }
-    pub fn num_concepts(&self) -> usize {
-        self.all_concepts_par_iter().count()
+        let arc = self.arc();
+        self.all_concepts_raw_par_iter()
+            .map(|c| c.to_formal_concept(arc.clone()))
+            .collect()
     }
 }
