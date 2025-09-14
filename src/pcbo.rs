@@ -57,10 +57,12 @@ impl<A: Sync, B: Sync> FormalContext<A, B> {
 }
 
 impl<A: Clone + Send + Sync, B: Clone + Send + Sync> FormalContext<A, B> {
-    pub fn all_concepts(&self) -> Vec<FormalConcept<A, B>> {
+    pub fn all_concepts_par_iter(&self) -> impl ParallelIterator<Item = FormalConcept<A, B>> {
         let arc = self.arc();
         self.all_concepts_raw_par_iter()
-            .map(|c| c.to_formal_concept(arc.clone()))
-            .collect()
+            .map(move |c| c.to_formal_concept(arc.clone()))
+    }
+    pub fn all_concepts(&self) -> Vec<FormalConcept<A, B>> {
+        self.all_concepts_par_iter().collect()
     }
 }
