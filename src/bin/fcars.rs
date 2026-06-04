@@ -22,8 +22,8 @@ Arguments:
 
 #[derive(Clone, Copy)]
 enum InputFormat {
-    DAT,
-    CXT,
+    Dat,
+    Cxt,
 }
 
 struct Config {
@@ -55,11 +55,11 @@ fn run() -> io::Result<()> {
     let mut output = open_output(config.output_path.as_deref())?;
 
     match config.input_format {
-        InputFormat::DAT => {
+        InputFormat::Dat => {
             let context = FormalContext::from_dat(input);
             write_result(context, config.count_only, config.verbose, &mut output)
         }
-        InputFormat::CXT => {
+        InputFormat::Cxt => {
             let context = FormalContext::from_cxt(input);
             write_result(context, config.count_only, config.verbose, &mut output)
         }
@@ -70,7 +70,7 @@ fn parse_args(args: impl IntoIterator<Item = String>) -> io::Result<Option<Confi
     let mut count_only = false;
     let mut verbose = false;
     let mut output_path = None;
-    let mut input_format = InputFormat::DAT;
+    let mut input_format = InputFormat::Dat;
     let mut input_path = None;
 
     let mut args = args.into_iter();
@@ -87,8 +87,8 @@ fn parse_args(args: impl IntoIterator<Item = String>) -> io::Result<Option<Confi
                     return Err(invalid_input("-o may only be specified once"));
                 }
             }
-            "--dat" => input_format = InputFormat::DAT,
-            "--cxt" => input_format = InputFormat::CXT,
+            "--dat" => input_format = InputFormat::Dat,
+            "--cxt" => input_format = InputFormat::Cxt,
             _ if arg.starts_with('-') => {
                 return Err(invalid_input(format!("unknown option: {arg}")));
             }

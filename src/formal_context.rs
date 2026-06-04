@@ -44,10 +44,10 @@ impl<A, B> FormalContext<A, B> {
     pub fn new(objects: Vec<A>, attributes: Vec<B>, relation: Vec<BitVec>) -> Self {
         assert_eq!(relation.len(), objects.len());
         let mut relation_transposed = vec![BitVec::with_capacity(objects.len()); attributes.len()];
-        for i in 0..objects.len() {
-            assert_eq!(relation[i].len(), attributes.len());
-            for j in 0..attributes.len() {
-                relation_transposed[j].push(relation[i][j]);
+        for row in &relation {
+            assert_eq!(row.len(), attributes.len());
+            for (j, bit) in row.iter().by_vals().enumerate() {
+                relation_transposed[j].push(bit);
             }
         }
         Self {
@@ -147,7 +147,7 @@ impl<A, B> FormalContext<A, B> {
     }
     /// Returns the density of formal context, i.e. the percentage of entries in the matrix which are 1's
     pub fn density(&self) -> f64 {
-        if self.objects.len() == 0 || self.attributes.len() == 0 {
+        if self.objects.is_empty() || self.attributes.is_empty() {
             panic!("Cannot compute density of empty context");
         }
         self.relation
@@ -174,8 +174,8 @@ impl<A: Clone> FormalContext<A, A> {
     /// Creates the 'contranomial scale' on the given objects, where each object has all attributes except itself.
     pub fn contranomial_scale(objects: Vec<A>) -> Self {
         let mut relation = vec![BitVec::repeat(true, objects.len()); objects.len()];
-        for i in 0..objects.len() {
-            relation[i].set(i, false);
+        for (i, row) in relation.iter_mut().enumerate() {
+            row.set(i, false);
         }
         Self {
             attributes: objects.clone(),

@@ -15,7 +15,7 @@ pub(crate) fn is_subset(a: &BitVec, b: &BitVec) -> bool {
 /// If so, returns the index of the first such row
 /// Else, returns None
 /// ASSUMES x is a matrix, i.e. each bitvec in x has the same length.
-pub(crate) fn redundant_row(x: &Vec<BitVec>) -> Option<usize> {
+pub(crate) fn redundant_row(x: &[BitVec]) -> Option<usize> {
     for i in 0..x.len() {
         let mut best_approx = BitVec::repeat(true, x[0].len());
         for j in 0..x.len() {
@@ -204,8 +204,9 @@ impl DenseContext {
         let extent = full_dense_words(self.obj_words, self.object_tail_mask);
         let mut intent = full_dense_words(self.attr_words, self.attribute_tail_mask);
         for object in 0..self.objects_len {
-            for word in 0..self.attr_words {
-                intent[word] &= self.object_intent(object)[word];
+            let object_intent = self.object_intent(object);
+            for (intent_word, object_word) in intent.iter_mut().zip(object_intent) {
+                *intent_word &= *object_word;
             }
         }
 
