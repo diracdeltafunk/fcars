@@ -8,6 +8,10 @@ authors = ["Ben Spitz <diracdeltafunk@users.noreply.github.com>"]
 name = "fcars"
 path = "src/lib.rs"
 
+[[bin]]
+name = "fcars"
+path = "src/bin/fcars.rs"
+
 [dependencies]
 bitvec = "1.0.1"
 rayon = "1.11.0"
