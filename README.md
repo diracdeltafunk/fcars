@@ -62,7 +62,7 @@ Extent: [], Intent: ["needs water to live", "lives in water", "lives on land", "
 For large contexts, `fcars` can split PCbO counting into independent jobs suitable for a Slurm job array:
 
 ```console
-> fcars --hpc-jobs 4096 --dat S_5.dat
+> fcars --hpc-jobs 4096 [file]
 ```
 
 This prints a plan with the actual array range. The number given to `--hpc-jobs` is a target frontier size; the actual array size may be larger because concepts expanded while building the frontier are counted as one-concept jobs.
@@ -77,7 +77,7 @@ Each array task can then count one partition. By default, `fcars` reads `SLURM_A
 #SBATCH --array=0-4095
 #SBATCH --output=counts/%A_%a.tsv
 
-fcars --hpc-jobs 4096 --dat S_5.dat
+fcars --hpc-jobs 4096 [file]
 ```
 
 Each task prints a tab-separated line:
