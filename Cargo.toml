@@ -3,6 +3,13 @@ name = "fcars"
 version = "0.2.0"
 edition = "2024"
 authors = ["Ben Spitz <diracdeltafunk@users.noreply.github.com>"]
+license-file = "LICENSE"
+description = "A Rust library (and binary) for Formal Concept Analysis."
+homepage = "https://github.com/diracdeltafunk/fcars"
+repository = "https://github.com/diracdeltafunk/fcars"
+keywords = ["fca", "formal-concept", "lattice"]
+categories = ["mathematics"]
+readme = "README.md"
 
 [lib]
 name = "fcars"
