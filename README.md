@@ -2,21 +2,29 @@
 
 `fcars` stands for **Formal Concept Analysis in Rust**.
 
-`fcars` is both a binary (which just computes formal concepts from the command line) and a library (which you can use as a tool for arbitrary FCA computations).
+`fcars` is both a binary for computing formal concepts from the command line and a library for arbitrary FCA computations.
 
 ## Usage
 
 ### Binary
 
-To install the `fcars` binary on your system, you need to have `cargo` installed. Then, just run
+To install the `fcars` binary on your system, you need to have `cargo` installed. Then run:
 
 ```console
 > cargo install --git https://github.com/diracdeltafunk/fcars.git
 ```
 
+The basic command-line interface is:
+
+```console
+> fcars [-n] [-V] [-o file_out] [--dat | --cxt] [file_in]
+```
+
+Use `-n` to print only the number of concepts, `-V` to print the context before computing concepts, and `-o` to write output to a file instead of stdout. If no input file is given, `fcars` reads from stdin. `fcars -h` displays full usage info.
+
 #### Example Binary Usage
 
-A classic example in Formal Concept Analysis is the "Lives in Water" lattice. Using the `.cxt` file provided [here](https://upriss.github.io/fca/examples.html) by Uta Priss, we can have `fcars` enumerate the concepts in this lattice:
+A classic example in Formal Concept Analysis is the "Lives in Water" context. Using the `.cxt` file provided [here](https://upriss.github.io/fca/examples.html) by Uta Priss, we can have `fcars` enumerate its concepts:
 
 ```console
 > fcars --cxt lives_in_water.cxt
@@ -49,14 +57,12 @@ Extent: [], Intent: ["needs water to live", "lives in water", "lives on land", "
 
 </details>
 
-`fcars -h` displays full usage info.
-
 ### Library
 
 To use the `fcars` library, add
 
 ```toml
-fcars = {git = "https://github.com/diracdeltafunk/fcars.git"}
+fcars = { git = "https://github.com/diracdeltafunk/fcars.git" }
 ```
 
 to the `[dependencies]` section of your `Cargo.toml` file.
@@ -64,7 +70,7 @@ to the `[dependencies]` section of your `Cargo.toml` file.
 Or, to also enable generating random formal contexts, use
 
 ```toml
-fcars = {git = "https://github.com/diracdeltafunk/fcars.git", features=["random"]}
+fcars = { git = "https://github.com/diracdeltafunk/fcars.git", features = ["random"] }
 ```
 
 #### Example Library Usage
