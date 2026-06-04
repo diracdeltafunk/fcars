@@ -11,6 +11,7 @@ Usage: fcars [-n] [-o file] [--dat | --cxt] [file_in]
 
 Options:
   -n                By default, all concepts are printed (one per line). If this flag is given, only the number of concepts is printed.
+  -V                Verbose output: print the context, whether it is reduced, and the number of concepts.
   -o file           Write output to file instead of stdout.
   [--dat | --cxt]   Specifies input format. By default, .dat format is assumed. If more than one format flag is specified, the last one takes precedence.
   -h, --help        Print this help message. Disregard all other options and arguments.
@@ -27,6 +28,7 @@ enum InputFormat {
 
 struct Config {
     count_only: bool,
+    verbose: bool,
     output_path: Option<String>,
     input_format: InputFormat,
     input_path: Option<String>,
@@ -55,17 +57,18 @@ fn run() -> io::Result<()> {
     match config.input_format {
         InputFormat::DAT => {
             let context = FormalContext::from_dat(input);
-            write_result(context, config.count_only, &mut output)
+            write_result(context, config.count_only, config.verbose, &mut output)
         }
         InputFormat::CXT => {
             let context = FormalContext::from_cxt(input);
-            write_result(context, config.count_only, &mut output)
+            write_result(context, config.count_only, config.verbose, &mut output)
         }
     }
 }
 
 fn parse_args(args: impl IntoIterator<Item = String>) -> io::Result<Option<Config>> {
     let mut count_only = false;
+    let mut verbose = false;
     let mut output_path = None;
     let mut input_format = InputFormat::DAT;
     let mut input_path = None;
@@ -75,6 +78,7 @@ fn parse_args(args: impl IntoIterator<Item = String>) -> io::Result<Option<Confi
         match arg.as_str() {
             "-h" | "--help" => return Ok(None),
             "-n" => count_only = true,
+            "-V" => verbose = true,
             "-o" => {
                 let path = args
                     .next()
@@ -98,6 +102,7 @@ fn parse_args(args: impl IntoIterator<Item = String>) -> io::Result<Option<Confi
 
     Ok(Some(Config {
         count_only,
+        verbose,
         output_path,
         input_format,
         input_path,
@@ -121,20 +126,36 @@ fn open_output(path: Option<&str>) -> io::Result<Box<dyn Write>> {
 fn write_result<A, B>(
     context: FormalContext<A, B>,
     count_only: bool,
+    verbose: bool,
     output: &mut dyn Write,
 ) -> io::Result<()>
 where
-    A: Clone + Send + Sync + Debug,
-    B: Clone + Send + Sync + Debug,
+    A: Clone + Send + Sync + Debug + std::fmt::Display,
+    B: Clone + Send + Sync + Debug + std::fmt::Display,
 {
     if count_only {
-        writeln!(output, "{}", context.num_concepts())
-    } else {
-        for concept in context.all_concepts() {
+        if verbose {
+            writeln!(output, "{context}")?;
+            writeln!(output, "Reduced? {}", context.is_reduced())?;
+        }
+        return writeln!(output, "{}", context.num_concepts());
+    }
+
+    if verbose {
+        writeln!(output, "{context}")?;
+        writeln!(output, "Reduced? {}", context.is_reduced())?;
+        let concepts = context.all_concepts();
+        writeln!(output, "{}", concepts.len())?;
+        for concept in concepts {
             writeln!(output, "{concept}")?;
         }
-        Ok(())
+        return Ok(());
     }
+
+    for concept in context.all_concepts() {
+        writeln!(output, "{concept}")?;
+    }
+    Ok(())
 }
 
 fn invalid_input(message: impl Into<String>) -> io::Error {
