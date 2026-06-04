@@ -1,5 +1,5 @@
 use std::fmt::Display;
-use std::fs::File;
+use std::io::Read;
 
 use crate::FormalConcept;
 use crate::RawFormalConcept;
@@ -252,9 +252,9 @@ impl FormalContext {
     /// ```
     /// The blank lines and the first line (containing just the character `B`) *must* be present for the .cxt file to be well-formed!
     /// Each row of the context matrix corresponds to an object, and is a string of `.`s and `X`s. A `.` represents a 0 and an `X` represents a 1.
-    pub fn from_cxt(file: File) -> Self {
+    pub fn from_cxt(input: impl Read) -> Self {
         use std::io::{BufRead, BufReader};
-        let reader = BufReader::new(file);
+        let reader = BufReader::new(input);
         let mut lines = reader.lines();
 
         // Skip the first line (should be "B")
@@ -332,7 +332,7 @@ impl FormalContext {
 
             relation.push(row);
         }
-        return Self::new(objects, attributes, relation);
+        Self::new(objects, attributes, relation)
     }
 }
 
@@ -340,11 +340,11 @@ impl FormalContext<String, usize> {
     /// Loads a formal context from a .dat file. The format of a .dat file is as follows:
     /// Each row corresponds to one object, and is a space-separated list of non-negative integer attributes.
     /// That's it!
-    pub fn from_dat(file: File) -> Self {
+    pub fn from_dat(input: impl Read) -> Self {
         use std::collections::HashSet;
         use std::io::{BufRead, BufReader};
 
-        let reader = BufReader::new(file);
+        let reader = BufReader::new(input);
         let lines = reader.lines();
 
         // Collect all unique attributes from all lines
@@ -420,16 +420,7 @@ mod tests {
 
     #[test]
     fn test_from_dat_uses_usize_attributes() {
-        use std::fs::{File, remove_file, write};
-
-        let path = std::env::temp_dir().join(format!(
-            "fcars_from_dat_uses_usize_attributes_{}.dat",
-            std::process::id()
-        ));
-        write(&path, "2 10\n1 2\n10\n").expect("failed to write test .dat file");
-
-        let context = FormalContext::from_dat(File::open(&path).expect("failed to open test file"));
-        let _ = remove_file(path);
+        let context = FormalContext::from_dat("2 10\n1 2\n10\n".as_bytes());
 
         assert_eq!(context.objects, vec!["obj0", "obj1", "obj2"]);
         assert_eq!(context.attributes, vec![1, 2, 10]);
@@ -437,5 +428,29 @@ mod tests {
         assert!(context.get_relation(&"obj0".to_string(), &10));
         assert!(context.get_relation(&"obj1".to_string(), &1));
         assert!(!context.get_relation(&"obj1".to_string(), &10));
+    }
+
+    #[test]
+    fn test_from_cxt_accepts_read_input() {
+        let input = b"B
+
+2
+2
+
+obj0
+obj1
+attr0
+attr1
+X.
+.X
+";
+
+        let context = FormalContext::from_cxt(&input[..]);
+
+        assert_eq!(context.objects, vec!["obj0", "obj1"]);
+        assert_eq!(context.attributes, vec!["attr0", "attr1"]);
+        assert!(context.get_relation(&"obj0".to_string(), &"attr0".to_string()));
+        assert!(context.get_relation(&"obj1".to_string(), &"attr1".to_string()));
+        assert!(!context.get_relation(&"obj0".to_string(), &"attr1".to_string()));
     }
 }
