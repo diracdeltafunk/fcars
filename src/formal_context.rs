@@ -334,8 +334,11 @@ impl FormalContext {
         }
         return Self::new(objects, attributes, relation);
     }
+}
+
+impl FormalContext<String, usize> {
     /// Loads a formal context from a .dat file. The format of a .dat file is as follows:
-    /// Each row corresponds to one object, and is a space-separated list of attributes (usually non-negative integers)
+    /// Each row corresponds to one object, and is a space-separated list of non-negative integer attributes.
     /// That's it!
     pub fn from_dat(file: File) -> Self {
         use std::collections::HashSet;
@@ -346,13 +349,13 @@ impl FormalContext {
 
         // Collect all unique attributes from all lines
         let mut all_attributes = HashSet::new();
-        let mut object_attributes: Vec<Vec<String>> = Vec::new();
+        let mut object_attributes: Vec<Vec<usize>> = Vec::new();
 
         for line_result in lines {
-            let attrs: Vec<String> = line_result
+            let attrs: Vec<usize> = line_result
                 .expect("IO Error")
                 .split_whitespace()
-                .map(|s| s.to_string())
+                .map(|s| s.parse().expect("Invalid attribute"))
                 .collect();
             object_attributes.push(attrs.clone());
             for attr in attrs {
@@ -364,15 +367,17 @@ impl FormalContext {
 
         let objects: Vec<String> = (0..num_objects).map(|i| format!("obj{}", i)).collect();
 
-        let attributes: Vec<String> = all_attributes.into_iter().collect();
+        let mut attributes: Vec<usize> = all_attributes.into_iter().collect();
+        attributes.sort_unstable();
 
         let mut relation = vec![BitVec::repeat(false, attributes.len()); num_objects];
 
         for i in 0..num_objects {
             for att in &object_attributes[i] {
-                if let Some(j) = attributes.iter().position(|a| a == att) {
-                    relation[i].set(j, true);
-                }
+                let j = attributes
+                    .binary_search(att)
+                    .expect("Attribute not found in sorted attribute list");
+                relation[i].set(j, true);
             }
         }
 
@@ -411,5 +416,26 @@ mod tests {
         context.reduce();
         assert!(context.relation == vec![bitvec![1, 0], bitvec![0, 1]]);
         assert!(context.is_reduced());
+    }
+
+    #[test]
+    fn test_from_dat_uses_usize_attributes() {
+        use std::fs::{File, remove_file, write};
+
+        let path = std::env::temp_dir().join(format!(
+            "fcars_from_dat_uses_usize_attributes_{}.dat",
+            std::process::id()
+        ));
+        write(&path, "2 10\n1 2\n10\n").expect("failed to write test .dat file");
+
+        let context = FormalContext::from_dat(File::open(&path).expect("failed to open test file"));
+        let _ = remove_file(path);
+
+        assert_eq!(context.objects, vec!["obj0", "obj1", "obj2"]);
+        assert_eq!(context.attributes, vec![1, 2, 10]);
+        assert!(context.get_relation(&"obj0".to_string(), &2));
+        assert!(context.get_relation(&"obj0".to_string(), &10));
+        assert!(context.get_relation(&"obj1".to_string(), &1));
+        assert!(!context.get_relation(&"obj1".to_string(), &10));
     }
 }

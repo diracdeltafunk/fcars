@@ -68,5 +68,17 @@ mod tests {
             ],
         );
         assert_eq!(context.num_concepts(), 19);
+        let concepts = context.all_concepts();
+        assert_eq!(concepts.len(), 19);
+        assert!(concepts.iter().all(FormalConcept::validate));
+    }
+
+    #[test]
+    fn test_pcbo_dense_path() {
+        let context = FormalContext::zero_context((0..129).collect(), (0..129).collect());
+        assert_eq!(context.num_concepts(), 2);
+        let concepts = context.all_concepts();
+        assert_eq!(concepts.len(), 2);
+        assert!(concepts.iter().all(FormalConcept::validate));
     }
 }
