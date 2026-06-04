@@ -12,6 +12,7 @@ mod random;
 
 pub use formal_concept::*;
 pub use formal_context::*;
+pub use pcbo::PcboJobPlan;
 
 // Tests
 #[cfg(test)]
@@ -80,5 +81,41 @@ mod tests {
         let concepts = context.all_concepts();
         assert_eq!(concepts.len(), 2);
         assert!(concepts.iter().all(FormalConcept::validate));
+    }
+
+    #[test]
+    fn test_pcbo_job_counts_sum_to_total_mask_path() {
+        let context = FormalContext::new(
+            vec!["a", "b", "c"],
+            vec!["1", "2", "3"],
+            vec![bitvec![1, 0, 1], bitvec![1, 1, 1], bitvec![0, 1, 1]],
+        );
+        let plan = context.pcbo_job_plan(4);
+        let job_total = (0..plan.total_jobs())
+            .map(|job| context.num_concepts_in_pcbo_job(4, job).unwrap())
+            .sum::<usize>();
+
+        assert_eq!(job_total, context.num_concepts());
+        assert!(
+            context
+                .num_concepts_in_pcbo_job(4, plan.total_jobs())
+                .is_none()
+        );
+    }
+
+    #[test]
+    fn test_pcbo_job_counts_sum_to_total_dense_path() {
+        let context = FormalContext::zero_context((0..129).collect(), (0..3).collect());
+        let plan = context.pcbo_job_plan(4);
+        let job_total = (0..plan.total_jobs())
+            .map(|job| context.num_concepts_in_pcbo_job(4, job).unwrap())
+            .sum::<usize>();
+
+        assert_eq!(job_total, context.num_concepts());
+        assert!(
+            context
+                .num_concepts_in_pcbo_job(4, plan.total_jobs())
+                .is_none()
+        );
     }
 }

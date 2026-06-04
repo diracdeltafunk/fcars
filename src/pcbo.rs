@@ -35,6 +35,19 @@ use std::sync::Arc;
 // but handy while profiling real datasets.
 const PARALLEL_FRONTIER_FACTOR: usize = 8;
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct PcboJobPlan {
+    pub target_frontier: usize,
+    pub singleton_jobs: usize,
+    pub subtree_jobs: usize,
+}
+
+impl PcboJobPlan {
+    pub fn total_jobs(&self) -> usize {
+        self.singleton_jobs + self.subtree_jobs
+    }
+}
+
 // One frame in the explicit DFS iterator used by the masked parallel iterator.
 // `next_j` is the next candidate attribute to try for this frame.
 // `yielded` records whether the frame's own concept has already been emitted.
@@ -216,6 +229,28 @@ impl<A: Sync, B: Sync> FormalContext<A, B> {
 
         self.num_concepts_dense(&self.dense_context())
     }
+
+    pub fn pcbo_job_plan(&self, target_frontier: usize) -> PcboJobPlan {
+        let target_frontier = target_frontier.max(1);
+        if let Some(context) = self.mask_context() {
+            return context.job_plan(target_frontier);
+        }
+
+        self.dense_context().job_plan(target_frontier)
+    }
+
+    pub fn num_concepts_in_pcbo_job(
+        &self,
+        target_frontier: usize,
+        job_index: usize,
+    ) -> Option<usize> {
+        let target_frontier = target_frontier.max(1);
+        if let Some(context) = self.mask_context() {
+            return context.count_job(target_frontier, job_index);
+        }
+
+        self.dense_context().count_job(target_frontier, job_index)
+    }
 }
 
 impl MaskRawSubtreeIter {
@@ -342,16 +377,30 @@ impl MaskContext {
         count
     }
 
-    // Build the same breadth-first Rayon frontier as the generic implementation
-    // but with masked concepts. The prefix/frontier split avoids fine-grained
-    // Rayon scheduling inside the deep PCbO recursion.
-    fn parallel_frontier(&self) -> (Vec<MaskConcept>, Vec<(MaskConcept, usize)>) {
-        let threads = rayon::current_num_threads();
-        let target_frontier = if threads <= 1 {
-            1
-        } else {
-            threads * PARALLEL_FRONTIER_FACTOR
-        };
+    fn job_plan(&self, target_frontier: usize) -> PcboJobPlan {
+        let (prefix, frontier) = self.frontier(target_frontier);
+        PcboJobPlan {
+            target_frontier,
+            singleton_jobs: prefix.len(),
+            subtree_jobs: frontier.len(),
+        }
+    }
+
+    fn count_job(&self, target_frontier: usize, job_index: usize) -> Option<usize> {
+        let (prefix, frontier) = self.frontier(target_frontier);
+        if job_index < prefix.len() {
+            return Some(1);
+        }
+
+        let (concept, y) = frontier.get(job_index - prefix.len())?;
+        Some(self.count_subtree(*concept, *y))
+    }
+
+    // Build a breadth-first frontier. Expanded concepts become singleton jobs
+    // in `prefix`; the remaining frontier entries are independent PCbO
+    // subtrees. Together, those two vectors partition the concept lattice.
+    fn frontier(&self, target_frontier: usize) -> (Vec<MaskConcept>, Vec<(MaskConcept, usize)>) {
+        let target_frontier = target_frontier.max(1);
         let mut prefix = Vec::new();
         let mut frontier = VecDeque::from([(self.max_concept(), 0)]);
 
@@ -366,6 +415,12 @@ impl MaskContext {
         }
 
         (prefix, frontier.into())
+    }
+
+    // Build the same breadth-first frontier for Rayon. The prefix/frontier
+    // split avoids fine-grained scheduling inside the deep PCbO recursion.
+    fn parallel_frontier(&self) -> (Vec<MaskConcept>, Vec<(MaskConcept, usize)>) {
+        self.frontier(target_parallel_frontier())
     }
 }
 
@@ -487,14 +542,29 @@ impl DenseContext {
         count
     }
 
-    // Build enough top-level dense subtrees for Rayon to balance work.
-    fn parallel_frontier(&self) -> (Vec<DenseConcept>, Vec<(DenseConcept, usize)>) {
-        let threads = rayon::current_num_threads();
-        let target_frontier = if threads <= 1 {
-            1
-        } else {
-            threads * PARALLEL_FRONTIER_FACTOR
-        };
+    fn job_plan(&self, target_frontier: usize) -> PcboJobPlan {
+        let (prefix, frontier) = self.frontier(target_frontier);
+        PcboJobPlan {
+            target_frontier,
+            singleton_jobs: prefix.len(),
+            subtree_jobs: frontier.len(),
+        }
+    }
+
+    fn count_job(&self, target_frontier: usize, job_index: usize) -> Option<usize> {
+        let (prefix, frontier) = self.frontier(target_frontier);
+        if job_index < prefix.len() {
+            return Some(1);
+        }
+
+        let (concept, y) = frontier.get(job_index - prefix.len())?;
+        Some(self.count_subtree(concept.clone(), *y))
+    }
+
+    // Build enough top-level dense subtrees for Rayon or external schedulers to
+    // balance work. Expanded concepts are represented as singleton prefix jobs.
+    fn frontier(&self, target_frontier: usize) -> (Vec<DenseConcept>, Vec<(DenseConcept, usize)>) {
+        let target_frontier = target_frontier.max(1);
         let mut prefix = Vec::new();
         let mut frontier = VecDeque::from([(self.max_concept(), 0)]);
 
@@ -510,6 +580,11 @@ impl DenseContext {
 
         (prefix, frontier.into())
     }
+
+    // Build enough top-level dense subtrees for Rayon to balance work.
+    fn parallel_frontier(&self) -> (Vec<DenseConcept>, Vec<(DenseConcept, usize)>) {
+        self.frontier(target_parallel_frontier())
+    }
 }
 
 impl<A: Clone + Send + Sync, B: Clone + Send + Sync> FormalContext<A, B> {
@@ -523,5 +598,14 @@ impl<A: Clone + Send + Sync, B: Clone + Send + Sync> FormalContext<A, B> {
     }
     pub fn all_concepts(&self) -> Vec<FormalConcept<A, B>> {
         self.all_concepts_par_iter().collect()
+    }
+}
+
+fn target_parallel_frontier() -> usize {
+    let threads = rayon::current_num_threads();
+    if threads <= 1 {
+        1
+    } else {
+        threads * PARALLEL_FRONTIER_FACTOR
     }
 }

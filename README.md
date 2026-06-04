@@ -20,7 +20,7 @@ The basic command-line interface is:
 > fcars [-n] [-V] [-o file_out] [--dat | --cxt] [file_in]
 ```
 
-Use `-n` to print only the number of concepts, `-V` to print the context before computing concepts, and `-o` to write output to a file instead of stdout. If no input file is given, `fcars` reads from stdin. `fcars -h` displays full usage info.
+Use `-n` to print only the number of concepts, `-V` to print the context and reduction status before computing concepts, and `-o` to write output to a file instead of stdout. If no input file is given, `fcars` reads from stdin. `fcars -h` displays full usage info.
 
 #### Example Binary Usage
 
@@ -56,6 +56,37 @@ Extent: [], Intent: ["needs water to live", "lives in water", "lives on land", "
 ```
 
 </details>
+
+#### HPC Counting
+
+For large contexts, `fcars` can split PCbO counting into independent jobs suitable for a Slurm job array:
+
+```console
+> fcars --hpc-jobs 4096 --dat S_5.dat
+```
+
+This prints a plan with the actual array range. The number given to `--hpc-jobs` is a target frontier size; the actual array size may be larger because concepts expanded while building the frontier are counted as one-concept jobs.
+
+Each array task can then count one partition. By default, `fcars` reads `SLURM_ARRAY_TASK_ID` when `--hpc-jobs` is set:
+
+```bash
+#!/bin/bash
+#SBATCH --job-name=fcars-count
+#SBATCH --cpus-per-task=1
+# Replace this with the `slurm_array` range printed by the plan command.
+#SBATCH --array=0-4095
+#SBATCH --output=counts/%A_%a.tsv
+
+fcars --hpc-jobs 4096 --dat S_5.dat
+```
+
+Each task prints a tab-separated line:
+
+```text
+<job_index>    <concept_count>
+```
+
+After the array finishes, sum the second column of the output files to get the total number of concepts.
 
 ### Library
 
