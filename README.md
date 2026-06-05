@@ -62,7 +62,7 @@ Extent: [], Intent: ["needs water to live", "lives in water", "lives on land", "
 To use the `fcars` library, add
 
 ```toml
-fcars = { git = "https://github.com/diracdeltafunk/fcars.git" }
+fcars = "0.2.1"
 ```
 
 to the `[dependencies]` section of your `Cargo.toml` file.
@@ -70,7 +70,7 @@ to the `[dependencies]` section of your `Cargo.toml` file.
 Or, to also enable generating random formal contexts, use
 
 ```toml
-fcars = { git = "https://github.com/diracdeltafunk/fcars.git", features = ["random"] }
+fcars = {version = "0.2.1", features = ["random"]}
 ```
 
 #### Example Library Usage
