@@ -7,10 +7,15 @@ use crate::bit_fiddling::*;
 use bitvec::prelude::*;
 use std::sync::Arc;
 
+/// A binary relation between objects and attributes.
+///
+/// One can query the relation by object and attribute indices with [`FormalContext::get_relation_idx`] or by labels with [`FormalContext::get_relation`]. The relation can be modified with [`FormalContext::modify_relation_idx`] or by labels with [`FormalContext::modify_relation`].
 #[derive(Debug, PartialEq, Eq, Hash, Clone)]
 pub struct FormalContext<A = String, B = String> {
-    pub objects: Vec<A>,              // A subset of objects is an extent
-    pub attributes: Vec<B>,           // A subset of attributes is an intent
+    /// Object labels.
+    pub objects: Vec<A>,
+    /// Attribute labels.
+    pub attributes: Vec<B>,
     relation: Vec<BitVec>,            // The intent of each object
     relation_transposed: Vec<BitVec>, // The extent of each attribute
 }
@@ -37,10 +42,16 @@ impl<A: Display, B: Display> Display for FormalContext<A, B> {
 }
 
 impl<A, B> FormalContext<A, B> {
-    /// Constructs a new formal context
-    /// The names of objects are given by `objects`
-    /// The names of attributes are given by `attributes`
-    /// The binary matrix is given by `relation` (`relation[i]` corresponds to `objects[i]`)
+    /// Constructs a new formal context.
+    ///
+    /// The binary matrix is given by `relation`: `relation[i][j]` is true when
+    /// `objects[i]` has `attributes[j]`. The constructor also builds and stores
+    /// the transposed relation used by closure operations.
+    ///
+    /// # Panics
+    ///
+    /// Panics if `relation.len() != objects.len()` or if any row length differs
+    /// from `attributes.len()`.
     pub fn new(objects: Vec<A>, attributes: Vec<B>, relation: Vec<BitVec>) -> Self {
         assert_eq!(relation.len(), objects.len());
         let mut relation_transposed = vec![BitVec::with_capacity(objects.len()); attributes.len()];
@@ -57,9 +68,10 @@ impl<A, B> FormalContext<A, B> {
             relation_transposed,
         }
     }
-    /// Checks that the formal context is well-formed -- in memory, both
-    /// the relation and its transpose are stored. This function makes
-    /// sure they are consistent with each other.
+    /// Checks that the formal context is well-formed.
+    ///
+    /// In memory, both the relation and its transpose are stored. This function
+    /// makes sure they are consistent with each other.
     pub fn validate(&self) -> bool {
         // Check if relation is the transpose of relation_transposed
         for i in 0..self.objects.len() {
@@ -80,7 +92,10 @@ impl<A, B> FormalContext<A, B> {
             attributes,
         }
     }
-    /// Get the maximal concept (as RawFormalConcept)
+    /// Returns the maximal concept as a [`RawFormalConcept`].
+    ///
+    /// The maximal concept has all objects in its extent and the attributes
+    /// common to every object in its intent.
     pub fn max_concept_raw(&self) -> RawFormalConcept {
         RawFormalConcept {
             extent: BitVec::repeat(true, self.objects.len()),
@@ -90,24 +105,45 @@ impl<A, B> FormalContext<A, B> {
                 .fold(BitVec::repeat(true, self.attributes.len()), |a, b| a & b),
         }
     }
-    /// Modifies the relation at the given indices.
+    /// Modifies the relation at the given object and attribute indices.
+    ///
+    /// Both the row-oriented relation and its transpose are updated.
+    ///
+    /// # Panics
+    ///
+    /// Panics if either index is out of bounds.
     pub fn modify_relation_idx(&mut self, obj_idx: usize, attr_idx: usize, value: bool) {
         self.relation[obj_idx].set(attr_idx, value);
         self.relation_transposed[attr_idx].set(obj_idx, value);
     }
-    /// `get_relation_idx(i,j)` returns (i,j) entry of the context matrix
+    /// Returns the relation entry at the given object and attribute indices.
+    ///
+    /// # Panics
+    ///
+    /// Panics if either index is out of bounds.
     pub fn get_relation_idx(&self, obj_idx: usize, attr_idx: usize) -> bool {
         self.relation[obj_idx][attr_idx]
     }
-    /// `get_object_intent(i)` returns a reference to the `i`th row of the context matrix
+    /// Returns the intent bitset for the object at index `i`.
+    ///
+    /// # Panics
+    ///
+    /// Panics if `i` is out of bounds.
     pub fn get_object_intent(&self, i: usize) -> &BitVec {
         &self.relation[i]
     }
-    /// `get_attribute_extent(i)` returns a reference to the `i`th column of the context matrix
+    /// Returns the extent bitset for the attribute at index `i`.
+    ///
+    /// # Panics
+    ///
+    /// Panics if `i` is out of bounds.
     pub fn get_attribute_extent(&self, i: usize) -> &BitVec {
         &self.relation_transposed[i]
     }
-    /// Given an extent (a set of objects), induce its intent (the common attributes of those objects).
+    /// Induces the intent of an extent.
+    ///
+    /// `extent` is a bitset over object indices. The returned bitset contains
+    /// the attributes common to all objects in the extent.
     pub fn induce_r(&self, extent: &BitVec) -> BitVec {
         let mut intent = BitVec::repeat(true, self.attributes.len());
         for obj in extent.iter_ones() {
@@ -115,7 +151,10 @@ impl<A, B> FormalContext<A, B> {
         }
         intent
     }
-    /// Given an intent (a set of attributes), induce its extent (the set of objects having those attributes).
+    /// Induces the extent of an intent.
+    ///
+    /// `intent` is a bitset over attribute indices. The returned bitset
+    /// contains the objects that have every attribute in the intent.
     pub fn induce_l(&self, intent: &BitVec) -> BitVec {
         let mut extent = BitVec::repeat(true, self.objects.len());
         for attr in intent.iter_ones() {
@@ -123,12 +162,18 @@ impl<A, B> FormalContext<A, B> {
         }
         extent
     }
-    /// Check if the context is reduced, meaning no row or column of the relation is the intersection of other rows or columns (resp).
+    /// Returns whether the context is reduced.
+    ///
+    /// A context is reduced when no row or column of the relation is the
+    /// intersection of other rows or columns, respectively.
     pub fn is_reduced(&self) -> bool {
         redundant_row(&self.relation).is_none()
             && redundant_row(&self.relation_transposed).is_none()
     }
-    /// Modifies in place! Removes redundant rows and columns to obtain a reduced context
+    /// Reduces this context in place.
+    ///
+    /// Redundant rows and columns are removed, so this can change `objects`,
+    /// `attributes`, and the relation matrix.
     pub fn reduce(&mut self) {
         while let Some(i) = redundant_row(&self.relation) {
             self.objects.remove(i);
@@ -145,7 +190,11 @@ impl<A, B> FormalContext<A, B> {
             }
         }
     }
-    /// Returns the density of formal context, i.e. the percentage of entries in the matrix which are 1's
+    /// Returns the fraction of relation entries that are true.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the context has no objects or no attributes.
     pub fn density(&self) -> f64 {
         if self.objects.is_empty() || self.attributes.is_empty() {
             panic!("Cannot compute density of empty context");
@@ -159,11 +208,11 @@ impl<A, B> FormalContext<A, B> {
 }
 
 impl<A: Clone, B: Clone> FormalContext<A, B> {
-    /// Produce Arc of self
-    pub fn arc(&self) -> Arc<Self> {
+    pub(crate) fn arc(&self) -> Arc<Self> {
         Arc::new(self.clone())
     }
-    /// Get the maximal concept
+    /// Returns the maximal concept as a [`FormalConcept`].
+    /// See [`FormalContext::max_concept_raw`] for details.
     pub fn max_concept(&self) -> FormalConcept<A, B> {
         self.max_concept_raw()
             .to_formal_concept(std::sync::Arc::new(self.clone()))
@@ -171,7 +220,10 @@ impl<A: Clone, B: Clone> FormalContext<A, B> {
 }
 
 impl<A: Clone> FormalContext<A, A> {
-    /// Creates the 'contranomial scale' on the given objects, where each object has all attributes except itself.
+    /// Creates the contranomial scale on the given labels.
+    ///
+    /// Each label is used both as an object and an attribute. Object `i` has
+    /// every attribute except attribute `i`.
     pub fn contranomial_scale(objects: Vec<A>) -> Self {
         let mut relation = vec![BitVec::repeat(true, objects.len()); objects.len()];
         for (i, row) in relation.iter_mut().enumerate() {
@@ -187,6 +239,13 @@ impl<A: Clone> FormalContext<A, A> {
 }
 
 impl<A: Eq, B: Eq> FormalContext<A, B> {
+    /// Returns whether object `obj` has attribute `attr`.
+    ///
+    /// <div class="warning">If there is more than one object or attribute with the same label, this will operate on the first match.</div>
+    ///
+    /// # Panics
+    ///
+    /// Panics if either label is not present in the context.
     pub fn get_relation(&self, obj: &A, attr: &B) -> bool {
         let Some(obj_idx) = self.objects.iter().position(|o| o == obj) else {
             panic!("Object not found in context");
@@ -196,6 +255,11 @@ impl<A: Eq, B: Eq> FormalContext<A, B> {
         };
         self.relation[obj_idx][attr_idx]
     }
+    /// Builds an extent bitset from object labels.
+    ///
+    /// <div class="warning">If there is more than one object with the same label, this will operate on the first match.</div>
+    ///
+    /// Labels that are not present in the context are ignored.
     pub fn extent_from_objects(&self, objs: impl IntoIterator<Item = A>) -> BitVec {
         let mut extent = BitVec::repeat(false, self.objects.len());
         for obj in objs {
@@ -205,6 +269,11 @@ impl<A: Eq, B: Eq> FormalContext<A, B> {
         }
         extent
     }
+    /// Builds an intent bitset from attribute labels.
+    ///
+    /// <div class="warning">If there is more than one attribute with the same label, this will operate on the first match.</div>
+    ///
+    /// Labels that are not present in the context are ignored.
     pub fn intent_from_attributes(&self, attrs: impl IntoIterator<Item = B>) -> BitVec {
         let mut intent = BitVec::repeat(false, self.attributes.len());
         for attr in attrs {
@@ -214,6 +283,13 @@ impl<A: Eq, B: Eq> FormalContext<A, B> {
         }
         intent
     }
+    /// Modifies the relation entry identified by object and attribute labels.
+    ///
+    /// <div class="warning">If there is more than one object or attribute with the same label, this will operate on the first match.</div>
+    ///
+    /// # Panics
+    ///
+    /// Panics if either label is not present in the context.
     pub fn modify_relation(&mut self, obj: &A, attr: &B, value: bool) {
         let obj_idx = self
             .objects
@@ -230,7 +306,10 @@ impl<A: Eq, B: Eq> FormalContext<A, B> {
 }
 
 impl FormalContext {
-    /// Loads a formal context from a .cxt file. The format of a .cxt file is as follows:
+    /// Loads a formal context from Burmeister `.cxt` input.
+    ///
+    /// The expected format is:
+    ///
     /// ```cxt
     /// B
     ///
@@ -250,8 +329,15 @@ impl FormalContext {
     /// ...
     /// <last row of context matrix>
     /// ```
-    /// The blank lines and the first line (containing just the character `B`) *must* be present for the .cxt file to be well-formed!
-    /// Each row of the context matrix corresponds to an object, and is a string of `.`s and `X`s. A `.` represents a 0 and an `X` represents a 1.
+    ///
+    /// The blank lines and the first line containing `B` must be present. Each
+    /// matrix row corresponds to one object and contains `.` for false and `X`
+    /// for true.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the input cannot be read as lines, is malformed, has invalid
+    /// dimensions, or contains relation rows with invalid characters or lengths.
     pub fn from_cxt(input: impl Read) -> Self {
         use std::io::{BufRead, BufReader};
         let reader = BufReader::new(input);
@@ -337,9 +423,19 @@ impl FormalContext {
 }
 
 impl FormalContext<String, usize> {
-    /// Loads a formal context from a .dat file. The format of a .dat file is as follows:
-    /// Each row corresponds to one object, and is a space-separated list of non-negative integer attributes.
-    /// That's it!
+    /// Loads a formal context from simple `.dat` input.
+    ///
+    /// Each line corresponds to one object and contains a space-separated list
+    /// of non-negative integer attributes. Object labels are generated as
+    /// `obj0`, `obj1`, and so on. Attribute labels are the parsed `usize`
+    /// values, sorted increasingly.
+    ///
+    /// Empty lines are meaningful: they create objects with no attributes.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the input cannot be read as lines or if any attribute token
+    /// cannot be parsed as `usize`.
     pub fn from_dat(input: impl Read) -> Self {
         use std::collections::HashSet;
         use std::io::{BufRead, BufReader};

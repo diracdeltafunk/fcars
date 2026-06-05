@@ -160,7 +160,11 @@ impl<A: Sync, B: Sync> FormalContext<A, B> {
                 .sum::<usize>()
     }
 
-    /// Returns a parallel iterator over all formal concepts for this formal context.
+    /// Returns a parallel iterator over all raw formal concepts.
+    ///
+    /// The iterator yields [`RawFormalConcept`] values whose extent and intent
+    /// bitsets use this context's object and attribute indices. The global order
+    /// of concepts is not guaranteed.
     pub fn all_concepts_raw_par_iter(&self) -> impl ParallelIterator<Item = RawFormalConcept> + '_ {
         if let Some(context) = self.mask_context() {
             // `impl ParallelIterator` requires one concrete return type. Rayon
@@ -197,6 +201,12 @@ impl<A: Sync, B: Sync> FormalContext<A, B> {
         )
     }
 
+    /// Enumerates all raw formal concepts in this context.
+    ///
+    /// Raw concepts store only extent and intent bitsets, so this avoids the
+    /// per-concept `Arc<FormalContext<_, _>>` wrapping used by
+    /// [`FormalConcept`]. Concept order is an implementation detail and should
+    /// not be relied on.
     pub fn all_concepts_raw(&self) -> Vec<RawFormalConcept> {
         // If the context fits the fast path, keep the inner traversal in masks
         // and convert once, at the API boundary.
@@ -207,6 +217,10 @@ impl<A: Sync, B: Sync> FormalContext<A, B> {
         self.all_concepts_raw_dense(&self.dense_context())
     }
 
+    /// Counts the formal concepts in this context.
+    ///
+    /// This is usually faster and much less memory-intensive than enumerating
+    /// concepts, because it does not allocate a concept value for every result.
     pub fn num_concepts(&self) -> usize {
         // Counting is the most efficient way to benchmark or size very large
         // lattices because it avoids allocating a `RawFormalConcept` per result.
@@ -513,6 +527,10 @@ impl DenseContext {
 }
 
 impl<A: Clone + Send + Sync, B: Clone + Send + Sync> FormalContext<A, B> {
+    /// Returns a parallel iterator over all named formal concepts.
+    ///
+    /// Each yielded [`FormalConcept`] keeps an `Arc` to this context's labels.
+    /// The global order of concepts is not guaranteed.
     pub fn all_concepts_par_iter(&self) -> impl ParallelIterator<Item = FormalConcept<A, B>> {
         let arc = self.arc();
         self.all_concepts_raw_par_iter()
@@ -521,6 +539,12 @@ impl<A: Clone + Send + Sync, B: Clone + Send + Sync> FormalContext<A, B> {
                 data,
             })
     }
+
+    /// Enumerates all named formal concepts in this context.
+    ///
+    /// Each concept can iterate over the object and attribute labels in its
+    /// extent and intent. Concept order is an implementation detail and should
+    /// not be relied on.
     pub fn all_concepts(&self) -> Vec<FormalConcept<A, B>> {
         self.all_concepts_par_iter().collect()
     }

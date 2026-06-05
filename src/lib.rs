@@ -1,7 +1,27 @@
-//! This library implements Formal Concept Analysis (FCA) structures and algorithms.
-//! It includes definitions for `FormalContext` and `FormalConcept`, along with methods for
-//! computing intents and extents, checking for reduced contexts, and validating concepts.
-//! The implementation uses bit vectors for efficient representation of relations.
+#![warn(missing_docs)]
+
+//! Formal Concept Analysis data structures and algorithms.
+//!
+//! The usual workflow is:
+//!
+//! 1. Build or load a [`FormalContext`].
+//! 2. Use [`FormalContext::num_concepts`] when only the number of concepts is needed.
+//! 3. Use [`FormalContext::all_concepts`] to enumerate [`FormalConcept`]s.
+//!
+//! Contexts can be constructed directly with [`FormalContext::new`], loaded from
+//! Burmeister `.cxt` input with [`FormalContext::from_cxt`], or loaded from
+//! simple space-separated `.dat` input with [`FormalContext::from_dat`].
+//!
+//! [`FormalConcept`] is the ergonomic concept type: it keeps an `Arc` pointer to
+//! its context and can iterate over object and attribute labels.
+//!
+//! [`RawFormalConcept`]
+//! is the lower-level representation; it stores only bitmasks of object and
+//! attribute indices.
+//!
+//! The optional `random` feature adds constructors for random contexts:
+//! you can specify the number of objects and attributes, and the desired
+//! (expected) density of the context.
 
 mod bit_fiddling;
 mod formal_concept;
