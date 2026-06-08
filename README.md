@@ -11,7 +11,7 @@
 To install the `fcars` binary on your system, you need to have `cargo` installed. Then run:
 
 ```console
-> cargo install --git https://github.com/diracdeltafunk/fcars.git
+> cargo install fcars
 ```
 
 The basic command-line interface is:
