@@ -2,13 +2,29 @@ use bitvec::prelude::*;
 
 use crate::RawFormalConcept;
 
-pub(crate) fn is_subset(a: &BitVec, b: &BitVec) -> bool {
-    if a.len() != b.len() {
-        return false; // Different lengths, cannot be subset
+pub(crate) fn is_subset(left: &BitVec, right: &BitVec) -> bool {
+    if left.len() != right.len() {
+        return false;
     }
-    let mut temp = a.clone();
-    temp &= b;
-    temp == *a
+
+    let bits_per_word = usize::BITS as usize;
+    let full_words = left.len() / bits_per_word;
+    let remainder = left.len() % bits_per_word;
+    let left_words = left.as_raw_slice();
+    let right_words = right.as_raw_slice();
+
+    for i in 0..full_words {
+        if left_words[i] & !right_words[i] != 0 {
+            return false;
+        }
+    }
+
+    if remainder == 0 {
+        return true;
+    }
+
+    let mask = (1usize << remainder) - 1;
+    (left_words[full_words] & !right_words[full_words] & mask) == 0
 }
 
 /// Determines if any row of the binary matrix x is an intersection of other rows

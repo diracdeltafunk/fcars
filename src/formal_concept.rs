@@ -97,7 +97,7 @@ impl<A, B> FormalConcept<A, B> {
 
 impl<A: PartialEq, B: PartialEq> PartialEq for FormalConcept<A, B> {
     fn eq(&self, other: &Self) -> bool {
-        *self.context == *other.context && self.data == other.data
+        Arc::ptr_eq(&self.context, &other.context) && self.data == other.data
     }
 }
 
@@ -106,13 +106,13 @@ impl<A: Eq, B: Eq> Eq for FormalConcept<A, B> {}
 impl<A: PartialEq, B: PartialEq> PartialOrd for FormalConcept<A, B> {
     /// Concepts are ordered by subset containment of their extents, provided they are from the same context.
     fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
-        if *self.context != *other.context {
-            return None; // Cannot compare concepts from different contexts
-        }
-        self.data.partial_cmp(&other.data)
+        Arc::ptr_eq(&self.context, &other.context)
+            .then(|| self.data.partial_cmp(&other.data))
+            .flatten()
     }
 }
 
+/// Valid formal concepts are uniquely determined by their extents, so we can compare them by extent alone.
 impl PartialEq for RawFormalConcept {
     fn eq(&self, other: &Self) -> bool {
         self.extent == other.extent
@@ -125,13 +125,11 @@ impl PartialOrd for RawFormalConcept {
     /// Concepts are ordered by subset containment of their extents.
     fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
         if self.extent == other.extent {
-            return Some(std::cmp::Ordering::Equal);
-        }
-        if is_subset(&self.extent, &other.extent) {
-            return Some(std::cmp::Ordering::Less);
-        }
-        if is_subset(&other.extent, &self.extent) {
-            return Some(std::cmp::Ordering::Greater);
+            Some(std::cmp::Ordering::Equal);
+        } else if is_subset(&self.extent, &other.extent) {
+            Some(std::cmp::Ordering::Less);
+        } else if is_subset(&other.extent, &self.extent) {
+            Some(std::cmp::Ordering::Greater);
         }
         None
     }
